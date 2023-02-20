@@ -54,10 +54,10 @@ func BenchmarkEach(b *testing.B) {
 			cs := map[id.CID]component.C{
 				cBase: true,
 			}
-			if rand.Float64() > 0.75 {
+			if rand.Float64() > 0.3 {
 				cs[cDense] = true
 			}
-			if rand.Float64() > 0.3 {
+			if rand.Float64() > 0.75 {
 				cs[cSparse] = true
 			}
 
