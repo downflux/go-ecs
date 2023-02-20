@@ -1,11 +1,84 @@
 package registry
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/downflux/go-ecs/component"
 	"github.com/downflux/go-ecs/id"
 )
+
+func BenchmarkEach(b *testing.B) {
+	const (
+		cBase   = 0
+		cDense  = 1
+		cSparse = 2
+	)
+
+	type config struct {
+		n  int
+		cs int
+	}
+
+	configs := []config{
+		{
+			n:  1e4,
+			cs: 0,
+		},
+		{
+			n:  1e5,
+			cs: 0,
+		},
+		{
+			n:  1e6,
+			cs: 0,
+		},
+		{
+			n:  1e4,
+			cs: 100,
+		},
+		{
+			n:  1e5,
+			cs: 100,
+		},
+		{
+			n:  1e6,
+			cs: 100,
+		},
+	}
+
+	for _, c := range configs {
+		r := New()
+		for i := 0; i < c.n; i++ {
+			cs := map[id.CID]component.C{
+				cBase: true,
+			}
+			if rand.Float64() > 0.75 {
+				cs[cDense] = true
+			}
+			if rand.Float64() > 0.3 {
+				cs[cSparse] = true
+			}
+
+			for j := 0; j < c.cs; j++ {
+				cs[id.CID(j)+2] = true
+			}
+
+			r.Insert(cs)
+		}
+		b.Run(fmt.Sprintf("Dense/N=%v/C=%v", c.n, c.cs+3), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				r.Each([]id.CID{cBase, cDense}, func(eid id.EID, cs map[id.CID]component.C) error { return nil }, 1)
+			}
+		})
+		b.Run(fmt.Sprintf("Sparse/N=%v/C=%v", c.n, c.cs+3), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				r.Each([]id.CID{cBase, cSparse}, func(eid id.EID, cs map[id.CID]component.C) error { return nil }, 1)
+			}
+		})
+	}
+}
 
 func TestGet(t *testing.T) {
 	r := New()
