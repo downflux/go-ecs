@@ -7,7 +7,7 @@ import (
 	"github.com/downflux/go-ecs/entity"
 	"github.com/downflux/go-ecs/id"
 	"github.com/downflux/go-ecs/system"
-	// "github.com/downflux/go-pq/pq"
+	"github.com/downflux/go-pq/pq"
 )
 
 type R struct {
@@ -16,10 +16,42 @@ type R struct {
 }
 
 // Each allows the user to query and queue component mutations.
-func (r *R) Each(components []id.CID, s system.S) {
+func (r *R) Each(components []id.CID, s system.S, pool int) {
+	if len(components) == 0 {
+		return
+	}
+
 	// Loop over the component with the least amount of elements, then look
-	// up each element for that component map; if CID matches AND does not
-	// any in exclude...
+	// up each element for that component map.
+	q := pq.New[id.CID](len(components), pq.PMin)
+	for _, cid := range components {
+		q.Push(cid, float64(len(r.components[cid])))
+	}
+
+	candidates := make(map[id.EID]map[id.CID]component.C, 16)
+	cid, _ := q.Pop()
+	for eid, c := range r.components[cid] {
+		candidates[eid] = make(map[id.CID]component.C, len(components))
+		candidates[eid][cid] = c
+	}
+
+	if !q.Empty() {
+		for cid, _ := q.Pop(); !q.Empty(); cid, _ = q.Pop() {
+			// Entity candidates must contain all components.
+			for eid, cs := range candidates {
+				if c, ok := r.components[cid][eid]; !ok {
+					delete(candidates, eid)
+				} else {
+					cs[cid] = c
+				}
+			}
+		}
+	}
+
+	// TODO(minkezhang): Use pool size.
+	for _, c := range candidates {
+		s(c)
+	}
 }
 
 func (r *R) Insert(cs map[id.CID]component.C) id.EID {
