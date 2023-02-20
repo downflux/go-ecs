@@ -5,16 +5,17 @@ import (
 )
 
 type E struct {
-	eid id.EID
-	cid id.CID
+	eid        id.EID
+	components []id.CID
 }
 
-func New(eid id.EID, cid id.CID) *E {
-	return &E{
-		eid: eid,
-		cid: cid,
+func New(eid id.EID, components []id.CID) *E {
+	e := &E{
+		eid:        eid,
+		components: components,
 	}
+	return e
 }
 
-func (e *E) EID() id.EID { return e.eid }
-func (e *E) CID() id.CID { return e.cid }
+func (e *E) EID() id.EID          { return e.eid }
+func (e *E) Components() []id.CID { return e.components }
