@@ -15,6 +15,13 @@ type R struct {
 	components map[id.CID]map[id.EID]component.C
 }
 
+func New() *R {
+	return &R{
+		entities:   make(map[id.EID]*entity.E, 1024),
+		components: make(map[id.CID]map[id.EID]component.C, 1024),
+	}
+}
+
 // Each allows the user to query and queue component mutations.
 func (r *R) Each(components []id.CID, s system.S, pool int) {
 	if len(components) == 0 {
@@ -35,22 +42,23 @@ func (r *R) Each(components []id.CID, s system.S, pool int) {
 		candidates[eid][cid] = c
 	}
 
-	if !q.Empty() {
-		for cid, _ := q.Pop(); !q.Empty(); cid, _ = q.Pop() {
-			// Entity candidates must contain all components.
-			for eid, cs := range candidates {
-				if c, ok := r.components[cid][eid]; !ok {
-					delete(candidates, eid)
-				} else {
-					cs[cid] = c
-				}
+	for !q.Empty() {
+		cid, _ := q.Pop()
+		// Entity candidates must contain all components.
+		for eid, cs := range candidates {
+			if c, ok := r.components[cid][eid]; !ok {
+				delete(candidates, eid)
+			} else {
+				cs[cid] = c
 			}
 		}
 	}
 
 	// TODO(minkezhang): Use pool size.
-	for _, c := range candidates {
-		s(c)
+	for eid, c := range candidates {
+		if err := s(eid, c); err != nil {
+			panic(fmt.Sprintf("ECS system could not process data: %v", err))
+		}
 	}
 }
 
@@ -61,7 +69,7 @@ func (r *R) Insert(cs map[id.CID]component.C) id.EID {
 	for cid, c := range cs {
 		components = append(components, cid)
 		if _, ok := r.components[cid]; !ok {
-			r.components[cid] = make(map[id.EID]component.C, 16)
+			r.components[cid] = make(map[id.EID]component.C, 32)
 		}
 		r.components[cid][eid] = c
 	}
